@@ -179,15 +179,16 @@ class SSEService {
     }
   }
 
-  disconnect(): void {
+  disconnect(clearListeners: boolean = false): void {
     console.log('Disconnecting SSE service');
     if (this.eventSource) {
       this.eventSource.close();
       this.eventSource = null;
     }
     this.setConnected(false);
-    // Don't clear listeners - they should persist across reconnections
-    // this.listeners.clear(); // Commented out this problematic line
+    if (clearListeners){
+      this.clearAllListeners();
+    }
   }
 
   getConnectionState(): number {
@@ -196,15 +197,25 @@ class SSEService {
     return state;
   }
 
-  // Debug method to check current state
-  debug(): void {
-    console.log('=== SSE Service Debug Info ===');
-    console.log('URL:', this.url);
-    console.log('Connected:', this._isConnected);
-    console.log('EventSource state:', this.eventSource?.readyState);
-    console.log('Registered listeners:', Array.from(this.listeners.keys()));
-    console.log('Reconnect attempts:', this.reconnectAttempts);
-    console.log('==============================');
+  clearAllListeners(): void {
+    const totalCount = Array.from(this.listeners.values()).reduce((sum, arr) => sum + arr.length, 0);
+    console.log("total count of listeners: ", totalCount);
+    this.listeners.clear();
+  }
+
+  clearListeners(eventType: string): void {
+    const count = this.listeners.get(eventType)?.length || 0;
+    console.log(`Clearing ${count} listeners for ${eventType}`);
+    this.listeners.set(eventType, []);
+  }
+
+
+   debugListeners(): void {
+    console.log('=== Current Listeners ===');
+    for (const [eventType, callbacks] of this.listeners.entries()) {
+      console.log(`${eventType}: ${callbacks.length} listeners`);
+    }
+    console.log('========================');
   }
 }
 
