@@ -57,7 +57,7 @@ const ChatPanel: React.FC<Props> = ({
   return (
     <div className="flex flex-col h-full bg-white rounded-xl shadow-lg overflow-hidden">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-5">
+      <div className="bg-gradient-to-r from-red-500 to-rose-400 text-white p-5">
         <div className="flex justify-between items-center">
           <h2 className="text-xl font-semibold">Chat with AI</h2>
           <div className="flex items-center gap-2">
@@ -83,19 +83,19 @@ const ChatPanel: React.FC<Props> = ({
                   <h4 className="font-semibold text-gray-800 mb-2">Try asking:</h4>
                   <ul className="space-y-1 text-sm text-gray-600">
                     <li className="flex items-center gap-2">
-                      <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
+                      <span className="w-1 h-1 bg-red-500 rounded-full"></span>
                       "How does gravity work?"
                     </li>
                     <li className="flex items-center gap-2">
-                      <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
+                      <span className="w-1 h-1 bg-red-500 rounded-full"></span>
                       "Explain photosynthesis"
                     </li>
                     <li className="flex items-center gap-2">
-                      <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
+                      <span className="w-1 h-1 bg-red-500 rounded-full"></span>
                       "What is machine learning?"
                     </li>
                     <li className="flex items-center gap-2">
-                      <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
+                      <span className="w-1 h-1 bg-red-500 rounded-full"></span>
                       "How do electric circuits work?"
                     </li>
                   </ul>
@@ -108,14 +108,14 @@ const ChatPanel: React.FC<Props> = ({
             <div key={message.id} className={`flex ${message.type === 'question' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-xs md:max-w-md lg:max-w-lg xl:max-w-xl rounded-2xl px-4 py-3 ${
                 message.type === 'question' 
-                  ? 'bg-blue-500 text-white' 
+                  ? 'bg-red-500 text-white' 
                   : 'bg-gray-100 text-gray-800'
               }`}>
                 <div className="whitespace-pre-wrap break-words">
                   {message.content}
                 </div>
                 <div className={`flex items-center justify-between mt-2 text-xs ${
-                  message.type === 'question' ? 'text-blue-100' : 'text-gray-500'
+                  message.type === 'question' ? 'text-red-100' : 'text-gray-500'
                 }`}>
                   <span>{formatTime(message.timestamp)}</span>
                   {message.status && (
@@ -139,7 +139,7 @@ const ChatPanel: React.FC<Props> = ({
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse-dot" style={{ animationDelay: '0.2s' }}></div>
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse-dot" style={{ animationDelay: '0.4s' }}></div>
                   </div>
-                  <span className="text-sm text-gray-600">AI is thinking...</span>
+                  <span className="text-sm text-gray-600">Tanmay is thinking...</span>
                 </div>
               </div>
             </div>
@@ -161,7 +161,7 @@ const ChatPanel: React.FC<Props> = ({
                 onKeyDown={handleKeyDown}
                 placeholder="Ask me anything... (Shift+Enter for new line)"
                 className="w-full resize-none rounded-xl border border-gray-200 px-4 py-3 
-                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                         focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent
                          disabled:bg-gray-100 disabled:cursor-not-allowed
                          min-h-[44px] max-h-32"
                 disabled={isLoading || !isConnected}
@@ -171,7 +171,7 @@ const ChatPanel: React.FC<Props> = ({
             <button
               type="submit"
               disabled={!inputValue.trim() || isLoading || !isConnected}
-              className="w-11 h-11 rounded-xl bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 
+              className="w-11 h-11 rounded-xl bg-red-500 hover:bg-red-600 disabled:bg-gray-300 
                        disabled:cursor-not-allowed text-white flex items-center justify-center
                        transition-colors duration-200 text-lg flex-shrink-0"
             >

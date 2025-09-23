@@ -32,7 +32,7 @@ const DebugPanel: React.FC = () => {
 
   const testSSEConnection = () => {
     console.log('Testing SSE connection...');
-    sseService.debug();
+    sseService.debugListeners();
     sseService.disconnect();
     setTimeout(() => sseService.connect(), 1000);
   };
@@ -103,7 +103,7 @@ const DebugPanel: React.FC = () => {
         <div className="mb-4 space-y-2">
           <button
             onClick={testSSEConnection}
-            className="w-full bg-blue-500 text-white px-3 py-2 rounded text-sm hover:bg-blue-600"
+            className="w-full bg-red-100 text-white px-3 py-2 rounded text-sm hover:bg-red-100"
           >
             Reconnect SSE
           </button>

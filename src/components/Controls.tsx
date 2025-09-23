@@ -41,7 +41,7 @@ const Controls: React.FC<Props> = ({
           <button
             onClick={animationState.isPlaying ? onPause : onPlay}
             disabled={animationState.duration === 0}
-            className="w-10 h-10 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 
+            className="w-10 h-10 rounded-lg bg-red-100 hover:bg-red-100 disabled:bg-gray-400 
                      disabled:cursor-not-allowed text-white flex items-center justify-center
                      transition-colors duration-200 text-lg"
           >
@@ -51,7 +51,7 @@ const Controls: React.FC<Props> = ({
           <button
             onClick={onRestart}
             disabled={animationState.duration === 0}
-            className="w-10 h-10 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 
+            className="w-10 h-10 rounded-lg bg-red-100 hover:bg-red-100 disabled:bg-gray-400 
                      disabled:cursor-not-allowed text-white flex items-center justify-center
                      transition-colors duration-200 text-lg"
           >
@@ -74,11 +74,11 @@ const Controls: React.FC<Props> = ({
             onClick={handleProgressClick}
           >
             <div
-              className="absolute top-0 left-0 h-full bg-blue-500 rounded-full transition-all duration-100"
+              className="absolute top-0 left-0 h-full bg-red-100 rounded-full transition-all duration-100"
               style={{ width: `${animationState.progress * 100}%` }}
             />
             <div
-              className="absolute top-1/2 w-4 h-4 bg-blue-500 border-2 border-white rounded-full 
+              className="absolute top-1/2 w-4 h-4 bg-red-100 border-2 border-white rounded-full 
                        transform -translate-y-1/2 shadow-sm transition-all duration-100
                        group-hover:scale-110"
               style={{ left: `${animationState.progress * 100}%`, transform: 'translateX(-50%) translateY(-50%)' }}
