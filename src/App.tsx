@@ -225,53 +225,46 @@ function App() {
     }
   }, [animationState.isPlaying, animationState.duration]); // Remove animationTimer from dependencies
 
-  // Handle sending messages
   const handleSendMessage = useCallback(async (content: string) => {
     console.log('Sending message:', content);
-    
     const tempId = Date.now().toString();
-    const userMessage: Message = {
-      id: tempId,
-      type: 'question',
-      content,
-      timestamp: new Date(),
-      status: 'pending',
-    }
-
-    setMessages(prev => {
-      console.log('Adding user message to:', prev.length, 'existing messages');
-      return [...prev, userMessage];
-    });
     setIsLoading(true);
 
     try {
-      // Submit question to API - using a default userId for now
       const defaultUserId = 'default-user';
-      console.log('Submitting question to API...');
       const question = await apiService.submitQuestion(defaultUserId, content);
-      console.log('Question submitted successfully:', question);
-      
-      // Update message with question ID
-      setMessages(prev => 
-        prev.map(msg => 
-          msg.id === tempId 
-            ? { ...msg, id: question.id, status: 'pending' as const }
-            : msg
-        )
-      );
+
+      setMessages(prev => {
+        const existingIds = new Set(prev.map(m => m.id));
+        if(existingIds.has(question.id)){
+          return prev.map(msg => 
+            msg.id === tempId
+              ? { ...msg, status: 'pending' as const }
+              : msg
+          );
+        } else {
+          return prev.map(msg => 
+            msg.id === tempId
+              ? { ...msg, id: question.id, status: 'pending' as const }
+              : msg
+          );
+        }
+      })
       
     } catch (error) {
       console.error('Failed to send message:', error);
       setIsLoading(false);
       
-      // Update message status to error
-      setMessages(prev => 
-        prev.map(msg => 
-          msg.id === tempId 
-            ? { ...msg, status: 'error' as const }
-            : msg
-        )
-      );
+      // For error case, create a message with a unique temp ID
+      const errorMessage: Message = {
+        id: `error-${Date.now()}`, // Ensure unique ID for errors
+        type: 'question',
+        content,
+        timestamp: new Date(),
+        status: 'error',
+      };
+      
+      setMessages(prev => [...prev, errorMessage]);
     }
   }, []);
 
