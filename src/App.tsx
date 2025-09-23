@@ -88,32 +88,39 @@ function App() {
   // Animation timer
   const [animationTimer, setAnimationTimer] = useState<number | null>(null);
 
-  // Initialize SSE connection
+  // Initialize SSE connection - FIXED VERSION
   useEffect(() => {
-    console.log('Setting up SSE listeners...');
+    console.log('🚀 SSE useEffect triggered');
     
-    // Set up SSE event listeners
-    sseService.on('question_created', (data: any) => {
-      console.log('Question created event received:', data);
+    // CRITICAL: Clear existing listeners first (for HMR)
+    console.log('🧹 Clearing existing listeners before setup...');
+    sseService.clearAllListeners();
+    
+    // Now check how many listeners we have after clearing
+    sseService.debugListeners();
+    
+    // Create named handler functions (easier to debug and cleanup)
+    const handleQuestionCreated = (data: any) => {
+      console.log('❓ Question created event received:', data);
       const question = data.question;
       if (question) {
-        console.log('Question created:', question);
+        console.log('✅ Question created:', question);
       }
-    });
+    };
 
-    sseService.on('answer_created', (data: any) => {
-      console.log('Answer created event received:', data);
+    const handleAnswerCreated = (data: any) => {
+      console.log('📨 Answer created event received (RAW):', data);
+      console.log('🕐 Event timestamp:', new Date().toISOString());
       
-      // Extract answer from the data structure sent by backend
       const answer = data.answer;
       if (!answer) {
-        console.error('No answer data found in SSE event:', data);
+        console.error('❌ No answer data found in SSE event:', data);
         return;
       }
       
+      console.log('✅ Valid answer data:', answer);
       setIsLoading(false);
       
-      // Add answer message
       const answerMessage: Message = {
         id: answer.id,
         type: 'answer',
@@ -122,19 +129,30 @@ function App() {
         status: 'completed',
       };
       
+      console.log('🆕 Creating answer message:', answerMessage.id);
+      
       setMessages(prev => {
-        console.log('Adding answer message to:', prev.length, 'existing messages');
-        return [...prev, answerMessage];
+        console.log('📝 setMessages callback - prev count:', prev.length);
+        
+        // Check for duplicates
+        const existingMessage = prev.find(msg => msg.id === answer.id);
+        if (existingMessage) {
+          console.warn('⚠️ DUPLICATE DETECTED - Message already exists:', answer.id);
+          return prev; // Don't add duplicate
+        }
+        
+        console.log('✅ Adding new unique message:', answer.id);
+        const newMessages = [...prev, answerMessage];
+        console.log('📊 New messages count:', newMessages.length);
+        return newMessages;
       });
       
-      // Set visualization if available
+      // Handle visualization
       if (answer.visualization) {
-        console.log('Setting visualization:', answer.visualization);
-        
-        // Transform the database visualization to frontend format
+        console.log('🎨 Setting visualization:', answer.visualization.id);
         const frontendVisualization: VisualizationData = {
           id: answer.visualization.id,
-          type: 'animation', // Default type
+          type: 'animation',
           title: 'AI Generated Visualization',
           description: 'Interactive visualization of the answer',
           duration: answer.visualization.duration,
@@ -151,13 +169,12 @@ function App() {
           progress: 0,
         }));
       }
-    });
+    };
 
-    sseService.on('answer_error', (data: { questionId: string; error: string }) => {
-      console.error('Answer error event received:', data);
+    const handleAnswerError = (data: { questionId: string; error: string }) => {
+      console.error('❌ Answer error event received:', data);
       setIsLoading(false);
       
-      // Update question status to error
       setMessages(prev => 
         prev.map(msg => 
           msg.id === data.questionId 
@@ -165,28 +182,49 @@ function App() {
             : msg
         )
       );
-    });
+    };
 
     const handleConnectionChange = (connected: boolean) => {
-      console.log('SSE connection status changed:', connected);
+      console.log('🔌 SSE connection status changed:', connected);
       setIsConnected(connected);
-    }
+    };
 
-    sseService.on("connection_change", handleConnectionChange);
-
+    // Register listeners with named functions
+    console.log('👂 Registering event listeners...');
+    sseService.on('question_created', handleQuestionCreated);
+    sseService.on('answer_created', handleAnswerCreated);
+    sseService.on('answer_error', handleAnswerError);
+    sseService.on('connection_change', handleConnectionChange);
+    
+    // Debug: Check listener count after registration
+    sseService.debugListeners();
+    
     // Connect to SSE
-    console.log('Connecting to SSE...');
+    console.log('📡 Connecting to SSE...');
     sseService.connect();
 
-    // Cleanup
+    // CLEANUP FUNCTION - This is the critical fix
     return () => {
-      console.log('Cleaning up SSE connection...');
-      sseService.disconnect();
+      console.log('🧹 Cleaning up SSE listeners...');
+      
+      // Remove specific listeners using the exact function references
+      sseService.off('question_created', handleQuestionCreated);
+      sseService.off('answer_created', handleAnswerCreated);
+      sseService.off('answer_error', handleAnswerError);
+      sseService.off('connection_change', handleConnectionChange);
+      
+      // Debug: Check listener count after removal
+      console.log('📊 Listeners after cleanup:');
+      sseService.debugListeners();
+      
+      // Disconnect with listener clearing (for development/HMR)
+      sseService.disconnect(true); // true = clear all listeners
+      
       if (animationTimer) {
         clearInterval(animationTimer);
       }
     };
-  }, []); // Remove animationTimer from dependencies
+  }, []); // Empty dependency array is correct
 
   // Animation timer effect
   useEffect(() => {
@@ -223,50 +261,68 @@ function App() {
       clearInterval(animationTimer);
       setAnimationTimer(null);
     }
-  }, [animationState.isPlaying, animationState.duration]); // Remove animationTimer from dependencies
+  }, [animationState.isPlaying, animationState.duration]);
 
   const handleSendMessage = useCallback(async (content: string) => {
-    console.log('Sending message:', content);
+    console.log('💬 handleSendMessage called with:', content);
+    console.log('🕐 Send timestamp:', new Date().toISOString());
+    
+    // Check if already sending this message
+    if (isLoading) {
+      console.warn('⚠️ Already sending a message, ignoring duplicate');
+      return;
+    }
+    
     const tempId = Date.now().toString();
+    console.log('🆔 Generated temp ID:', tempId);
+    
     setIsLoading(true);
+
+    // Add temporary message immediately
+    const tempMessage: Message = {
+      id: tempId,
+      type: 'question',
+      content,
+      timestamp: new Date(),
+      status: 'pending',
+    };
+    
+    setMessages(prev => {
+      console.log('📝 Adding temporary message, prev count:', prev.length);
+      return [...prev, tempMessage];
+    });
 
     try {
       const defaultUserId = 'default-user';
+      console.log('📤 Submitting question to API...');
+      
       const question = await apiService.submitQuestion(defaultUserId, content);
+      console.log('✅ Question submitted successfully:', question);
 
+      // Update the temporary message with real ID
       setMessages(prev => {
-        const existingIds = new Set(prev.map(m => m.id));
-        if(existingIds.has(question.id)){
-          return prev.map(msg => 
-            msg.id === tempId
-              ? { ...msg, status: 'pending' as const }
-              : msg
-          );
-        } else {
-          return prev.map(msg => 
-            msg.id === tempId
-              ? { ...msg, id: question.id, status: 'pending' as const }
-              : msg
-          );
-        }
-      })
+        console.log('📝 Updating temp message to real ID:', question.id);
+        return prev.map(msg => 
+          msg.id === tempId
+            ? { ...msg, id: question.id, status: 'pending' as const }
+            : msg
+        );
+      });
       
     } catch (error) {
-      console.error('Failed to send message:', error);
+      console.error('❌ Failed to send message:', error);
       setIsLoading(false);
       
-      // For error case, create a message with a unique temp ID
-      const errorMessage: Message = {
-        id: `error-${Date.now()}`, // Ensure unique ID for errors
-        type: 'question',
-        content,
-        timestamp: new Date(),
-        status: 'error',
-      };
-      
-      setMessages(prev => [...prev, errorMessage]);
+      // Update temp message to error state
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.id === tempId
+            ? { ...msg, status: 'error' as const }
+            : msg
+        )
+      );
     }
-  }, []);
+  }, [isLoading]);
 
   // Animation controls
   const handlePlay = useCallback(() => {
