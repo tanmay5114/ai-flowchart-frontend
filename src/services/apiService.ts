@@ -49,13 +49,16 @@ class ApiService {
 
   async getQuestionHistory(): Promise<{ questions: Question[]; answers: Answer[] }> {
     const questions = await this.getQuestions();
-    const answers = await Promise.all(
-      questions
-        .filter(q => q.status === 'answered')
-        .map(q => this.getAnswer(q.id))
-    );
-    
-    return { questions, answers };
+    if (questions.length > 0){
+      const answers = await Promise.all(
+        questions
+          .filter(q => q.status === 'answered')
+          .map(q => this.getAnswer(q.id))
+      );
+      
+      return { questions, answers };
+    }
+    return { questions: [], answers: []}
   }
 }
 
