@@ -58,14 +58,24 @@ export interface Shape {
 }
 
 export interface VisualizationData {
-  shapes: Shape[];
-  duration: number; // total animation duration in ms
+  id: string;
+  type: string;
+  title: string;
   description: string;
+  duration: number;
+  frames: Array<{
+    timestamp: number;
+    objects: Array<{
+      id: string;
+      type: string;
+      properties: any;
+    }>;
+  }>;
+  metadata?: any;
 }
-
 // SSE Event Types
 export interface SSEEvent {
-  type: 'question_created' | 'answer_created' | 'answer_error' | 'ping';
+  type: string;
   data: any;
 }
 

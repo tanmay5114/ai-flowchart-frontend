@@ -105,7 +105,7 @@ const ChatPanel: React.FC<Props> = ({
           )}
           
           {messages.map((message) => (
-            <div key={message.id} className={`flex ${message.type === 'question' ? 'justify-end' : 'justify-start'}`}>
+            <div key={`${Math.random()}-${message.id}`} className={`flex ${message.type === 'question' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-xs md:max-w-md lg:max-w-lg xl:max-w-xl rounded-2xl px-4 py-3 ${
                 message.type === 'question' 
                   ? 'bg-blue-500 text-white' 

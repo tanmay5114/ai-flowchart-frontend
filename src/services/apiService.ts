@@ -32,10 +32,16 @@ class ApiService {
     }
   }
 
-  async submitQuestion(content: string): Promise<Question> {
+  async submitQuestion(userId: string, question: string): Promise<Question> {
     return this.request<Question>('/questions', {
       method: 'POST',
-      body: JSON.stringify({ content }),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId, 
+        question
+      }),
     });
   }
 

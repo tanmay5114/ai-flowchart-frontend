@@ -6,14 +6,78 @@ import VisualizationCanvas from './components/VisualizationCanvas';
 import Controls from './components/Controls';
 import { apiService } from './services/apiService';
 import { sseService } from './services/sseService';
-import type { AnimationState, Answer, Message, Question, VisualizationData } from './types';
+import type { AnimationState, Message, VisualizationData } from './types';
+
+// Helper function to transform database visualization to frontend format
+function transformVisualizationData(dbVisualization: any): Partial<VisualizationData> {
+  if (!dbVisualization || !dbVisualization.layers) {
+    return {};
+  }
+
+  // Convert database layers/animations to frontend frames format
+  const frames = [];
+  const duration = dbVisualization.duration || 5000;
+  const frameCount = Math.ceil(duration / 16); // 60fps = 16ms per frame
+
+  for (let i = 0; i < frameCount; i++) {
+    const timestamp = i * 16;
+    const objects = dbVisualization.layers.map((layer: any) => {
+      let properties = { ...layer.props };
+
+      // Apply animations to properties at this timestamp
+      if (layer.animations) {
+        layer.animations.forEach((anim: any) => {
+          if (timestamp >= anim.startTime && timestamp <= anim.endTime) {
+            const progress = (timestamp - anim.startTime) / (anim.endTime - anim.startTime);
+            const easedProgress = applyEasing(progress, anim.easing);
+            
+            // Interpolate between from and to values
+            if (typeof anim.fromValue === 'number' && typeof anim.toValue === 'number') {
+              properties[anim.property] = anim.fromValue + (anim.toValue - anim.fromValue) * easedProgress;
+            }
+          }
+        });
+      }
+
+      return {
+        id: layer.layerId,
+        type: layer.type,
+        properties
+      };
+    });
+
+    frames.push({
+      timestamp,
+      objects
+    });
+  }
+
+  return {
+    frames,
+    metadata: dbVisualization.metadata
+  };
+}
+
+// Simple easing function
+function applyEasing(t: number, easing: string = 'linear'): number {
+  switch (easing) {
+    case 'ease-in':
+      return t * t;
+    case 'ease-out':
+      return 1 - (1 - t) * (1 - t);
+    case 'ease-in-out':
+      return t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t);
+    default:
+      return t; // linear
+  }
+}
 
 function App() {
   // State management
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isConnected, setIsConnected] = useState<boolean>(false);
   const [currentVisualization, setCurrentVisualization] = useState<VisualizationData | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
   const [animationState, setAnimationState] = useState<AnimationState>({
     isPlaying: false,
     currentTime: 0,
@@ -26,68 +90,103 @@ function App() {
 
   // Initialize SSE connection
   useEffect(() => {
+    console.log('Setting up SSE listeners...');
+    
     // Set up SSE event listeners
-    sseService.on('question_created', (question: Question) => {
-      console.log('Question created:', question);
+    sseService.on('question_created', (data: any) => {
+      console.log('Question created event received:', data);
+      const question = data.question;
+      if (question) {
+        console.log('Question created:', question);
+      }
     });
 
-    sseService.on('answer_created', (answer: Answer) => {
-      console.log('Answer received:', answer);
+    sseService.on('answer_created', (data: any) => {
+      console.log('Answer created event received:', data);
+      
+      // Extract answer from the data structure sent by backend
+      const answer = data.answer;
+      if (!answer) {
+        console.error('No answer data found in SSE event:', data);
+        return;
+      }
+      
       setIsLoading(false);
       
       // Add answer message
       const answerMessage: Message = {
         id: answer.id,
         type: 'answer',
-        content: answer.content,
-        timestamp: new Date(answer.timestamp),
+        content: answer.text, // Backend sends 'text', not 'content'
+        timestamp: new Date(answer.createdAt), // Backend sends 'createdAt', not 'timestamp'
         status: 'completed',
       };
       
-      setMessages(prev => [...prev, answerMessage]);
+      setMessages(prev => {
+        console.log('Adding answer message to:', prev.length, 'existing messages');
+        return [...prev, answerMessage];
+      });
       
       // Set visualization if available
       if (answer.visualization) {
-        setCurrentVisualization(answer.visualization);
+        console.log('Setting visualization:', answer.visualization);
+        
+        // Transform the database visualization to frontend format
+        const frontendVisualization: VisualizationData = {
+          id: answer.visualization.id,
+          type: 'animation', // Default type
+          title: 'AI Generated Visualization',
+          description: 'Interactive visualization of the answer',
+          duration: answer.visualization.duration,
+          frames: [], // Will be populated from layers/animations
+          // Convert database structure to frontend format
+          ...transformVisualizationData(answer.visualization)
+        };
+        
+        setCurrentVisualization(frontendVisualization);
         setAnimationState(prev => ({
           ...prev,
-          duration: answer.visualization!.duration,
+          duration: frontendVisualization.duration,
           currentTime: 0,
           progress: 0,
         }));
       }
     });
 
-    sseService.on('answer_error', (error: { questionId: string; error: string }) => {
-      console.error('Answer error:', error);
+    sseService.on('answer_error', (data: { questionId: string; error: string }) => {
+      console.error('Answer error event received:', data);
       setIsLoading(false);
       
       // Update question status to error
       setMessages(prev => 
         prev.map(msg => 
-          msg.id === error.questionId 
+          msg.id === data.questionId 
             ? { ...msg, status: 'error' as const }
             : msg
         )
       );
     });
 
-    sseService.on('ping', () => {
-      setIsConnected(true);
-    });
+    const handleConnectionChange = (connected: boolean) => {
+      console.log('SSE connection status changed:', connected);
+      setIsConnected(connected);
+    }
+
+    sseService.on("connection_change", handleConnectionChange);
 
     // Connect to SSE
+    console.log('Connecting to SSE...');
     sseService.connect();
-    setIsConnected(sseService.getConnectionState() === EventSource.OPEN);
 
     // Cleanup
     return () => {
+      console.log('Cleaning up SSE connection...');
       sseService.disconnect();
       if (animationTimer) {
         clearInterval(animationTimer);
       }
     };
-  }, [animationTimer]);
+  }, []); // Remove animationTimer from dependencies
 
   // Animation timer effect
   useEffect(() => {
@@ -124,30 +223,38 @@ function App() {
       clearInterval(animationTimer);
       setAnimationTimer(null);
     }
-  }, [animationState.isPlaying, animationState.duration, animationTimer]);
+  }, [animationState.isPlaying, animationState.duration]); // Remove animationTimer from dependencies
 
   // Handle sending messages
   const handleSendMessage = useCallback(async (content: string) => {
+    console.log('Sending message:', content);
+    
+    const tempId = Date.now().toString();
+    const userMessage: Message = {
+      id: tempId,
+      type: 'question',
+      content,
+      timestamp: new Date(),
+      status: 'pending',
+    }
+
+    setMessages(prev => {
+      console.log('Adding user message to:', prev.length, 'existing messages');
+      return [...prev, userMessage];
+    });
+    setIsLoading(true);
+
     try {
-      setIsLoading(true);
-      
-      // Add user message immediately
-      const userMessage: Message = {
-        id: Date.now().toString(),
-        type: 'question',
-        content,
-        timestamp: new Date(),
-      };
-      
-      setMessages(prev => [...prev, userMessage]);
-      
-      // Submit question to API
-      const question = await apiService.submitQuestion(content);
+      // Submit question to API - using a default userId for now
+      const defaultUserId = 'default-user';
+      console.log('Submitting question to API...');
+      const question = await apiService.submitQuestion(defaultUserId, content);
+      console.log('Question submitted successfully:', question);
       
       // Update message with question ID
       setMessages(prev => 
         prev.map(msg => 
-          msg.id === userMessage.id 
+          msg.id === tempId 
             ? { ...msg, id: question.id, status: 'pending' as const }
             : msg
         )
@@ -160,7 +267,7 @@ function App() {
       // Update message status to error
       setMessages(prev => 
         prev.map(msg => 
-          msg.content === content 
+          msg.id === tempId 
             ? { ...msg, status: 'error' as const }
             : msg
         )
@@ -198,7 +305,9 @@ function App() {
   useEffect(() => {
     const loadHistory = async () => {
       try {
+        console.log('Loading conversation history...');
         const { questions, answers } = await apiService.getQuestionHistory();
+        console.log('Loaded history:', { questions: questions.length, answers: answers.length });
         
         const messageHistory: Message[] = [];
         
@@ -226,6 +335,7 @@ function App() {
         
         // Sort by timestamp
         messageHistory.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+        console.log('Setting message history:', messageHistory.length, 'messages');
         setMessages(messageHistory);
         
       } catch (error) {
@@ -247,6 +357,10 @@ function App() {
           <p className="text-gray-600">
             Ask questions and learn through interactive animations
           </p>
+          {/* Add debug info */}
+          <div className="text-xs text-gray-400 mt-2">
+            Messages: {messages.length} | Connected: {isConnected ? 'Yes' : 'No'} | Loading: {isLoading ? 'Yes' : 'No'}
+          </div>
         </header>
 
         {/* Main Content */}
