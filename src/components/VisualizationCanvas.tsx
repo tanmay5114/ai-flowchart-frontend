@@ -2,6 +2,7 @@
 
 import React, { useRef, useEffect, useCallback } from 'react';
 import type { AnimationState, VisualizationData } from '../types';
+import { drawArc, drawArrow, drawBeam, drawCircle, drawEllipse, drawGrid, drawLine, drawMolecule, drawOrbit, drawParticle, drawPath, drawPendulum, drawPolygon, drawRectangle, drawSpring, drawStar, drawText, drawTriangle, drawVector, drawWave } from '../services/helpers';
 
 interface Props {
   visualization: VisualizationData | null;
@@ -66,6 +67,10 @@ const VisualizationCanvas: React.FC<Props> = ({
     if (props.rotation) {
       ctx.rotate((props.rotation * Math.PI) / 180);
     }
+
+    if(props.scale){
+      ctx.scale(props.scale, props.scale);
+    }
     
     if (props.opacity !== undefined) {
       ctx.globalAlpha = props.opacity;
@@ -79,101 +84,82 @@ const VisualizationCanvas: React.FC<Props> = ({
     if (props.stroke) {
       ctx.strokeStyle = props.stroke;
       ctx.lineWidth = props.strokeWidth || 1;
+      ctx.lineCap = props.lineCap || 'butt';
+      if (props.dashPattern){
+        ctx.setLineDash(props.dashPattern)
+      }
     }
 
     // Draw based on object type
-    switch (obj.type) {
+switch (obj.type) {
       case 'circle':
-        if (props.radius || props.r) {
-          const radius = props.radius || props.r;
-          ctx.beginPath();
-          ctx.arc(0, 0, radius, 0, 2 * Math.PI);
-          if (props.color || props.fill) ctx.fill();
-          if (props.stroke) ctx.stroke();
-        }
+        drawCircle(ctx, props);
         break;
-
       case 'rectangle':
       case 'rect':
-        if (props.width && props.height) {
-          ctx.beginPath();
-          ctx.rect(-props.width / 2, -props.height / 2, props.width, props.height);
-          if (props.color || props.fill) ctx.fill();
-          if (props.stroke) ctx.stroke();
-        }
+        drawRectangle(ctx, props);
         break;
-
       case 'text':
-        if (props.text) {
-          ctx.font = `${props.fontSize || 16}px ${props.fontFamily || 'Arial'}`;
-          ctx.textAlign = props.textAlign || 'center';
-          ctx.textBaseline = props.textBaseline || 'middle';
-          if (props.color || props.fill) {
-            ctx.fillText(props.text, 0, 0);
-          }
-          if (props.stroke) {
-            ctx.strokeText(props.text, 0, 0);
-          }
-        }
+        drawText(ctx, props);
         break;
-
       case 'line':
-        ctx.beginPath();
-        const startX = props.startX || -50;
-        const startY = props.startY || 0;
-        const endX = props.endX || 50;
-        const endY = props.endY || 0;
-        ctx.moveTo(startX, startY);
-        ctx.lineTo(endX, endY);
-        if (props.stroke || props.color) {
-          ctx.strokeStyle = props.stroke || props.color;
-          ctx.stroke();
-        }
+        drawLine(ctx, props);
         break;
-
       case 'arrow':
-        // Simple arrow implementation
-        const arrowStartX = props.startX || -30;
-        const arrowStartY = props.startY || 0;
-        const arrowEndX = props.endX || 20;
-        const arrowEndY = props.endY || 0;
-        const headSize = props.headSize || 10;
-        
-        ctx.beginPath();
-        // Arrow shaft
-        ctx.moveTo(arrowStartX, arrowStartY);
-        ctx.lineTo(arrowEndX, arrowEndY);
-        
-        // Arrow head
-        const angle = Math.atan2(arrowEndY - arrowStartY, arrowEndX - arrowStartX);
-        ctx.lineTo(
-          arrowEndX - headSize * Math.cos(angle - Math.PI / 6),
-          arrowEndY - headSize * Math.sin(angle - Math.PI / 6)
-        );
-        ctx.moveTo(arrowEndX, arrowEndY);
-        ctx.lineTo(
-          arrowEndX - headSize * Math.cos(angle + Math.PI / 6),
-          arrowEndY - headSize * Math.sin(angle + Math.PI / 6)
-        );
-        
-        if (props.stroke || props.color) {
-          ctx.strokeStyle = props.stroke || props.color;
-          ctx.stroke();
-        }
+        drawArrow(ctx, props);
         break;
-
+      case 'ellipse':
+        drawEllipse(ctx, props);
+        break;
+      case 'triangle':
+        drawTriangle(ctx, props);
+        break;
+      case 'star':
+        drawStar(ctx, props);
+        break;
+      case 'polygon':
+        drawPolygon(ctx, props);
+        break;
+      case 'arc':
+        drawArc(ctx, props);
+        break;
+      case 'wave':
+        drawWave(ctx, props);
+        break;
+      case 'grid':
+        drawGrid(ctx, props);
+        break;
+      case 'vector':
+        drawVector(ctx, props);
+        break;
+      case 'molecule':
+        drawMolecule(ctx, props);
+        break;
+      case 'beam':
+        drawBeam(ctx, props);
+        break;
+      case 'particle':
+        drawParticle(ctx, props);
+        break;
+      case 'orbit':
+        drawOrbit(ctx, props);
+        break;
+      case 'pendulum':
+        drawPendulum(ctx, props);
+        break;
+      case 'spring':
+        drawSpring(ctx, props);
+        break;
       case 'path':
-        if (props.pathData) {
-          // Simple path implementation - you might want to use Path2D for complex paths
-          ctx.beginPath();
-          // This is a simplified implementation
-          if (props.color || props.fill) ctx.fill();
-          if (props.stroke) ctx.stroke();
-        }
+        drawPath(ctx, props);
         break;
-
       default:
         console.warn(`Unknown object type: ${obj.type}`);
+    }
+
+        // Reset line dash
+    if (props.dashPattern) {
+      ctx.setLineDash([]);
     }
 
     ctx.restore();

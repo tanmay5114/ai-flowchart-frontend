@@ -23,57 +23,65 @@ export interface Answer {
   timestamp: Date;
 }
 
-// Animation Types
-export type EasingFunction = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out';
+// Updated to match backend
+export type VisualizationType = 'circle' | 'rectangle' | 'rect' | 'text' | 'line' | 'arrow' 
+  | 'ellipse' | 'triangle' | 'star' | 'polygon' | 'arc' | 'wave' 
+  | 'grid' | 'vector' | 'molecule' | 'beam' | 'particle' | 'orbit' 
+  | 'pendulum' | 'spring' | 'path';
 
-export interface Animation {
-  property: string;
-  from: number | string;
-  to: number | string;
-  start: number; // milliseconds
-  end: number; // milliseconds
-  easing?: EasingFunction;
-}
-
-export interface ShapeProps {
+export interface VisualizationProperties {
+  // Common properties
   x?: number;
   y?: number;
-  r?: number; // radius for circles
-  width?: number;
-  height?: number;
+  rotation?: number;
+  scale?: number;
+  opacity?: number;
+  color?: string;
   fill?: string;
   stroke?: string;
   strokeWidth?: number;
+  lineCap?: 'butt' | 'round' | 'square';
+  dashPattern?: number[];
+
+  // All the other properties from your backend...
+  r?: number;
+  radius?: number;
+  width?: number;
+  height?: number;
   text?: string;
   fontSize?: number;
-  opacity?: number;
-  rotation?: number;
+  font?: string;
+  textAlign?: 'left' | 'center' | 'right';
+  textBaseline?: 'top' | 'middle' | 'bottom';
+  startX?: number;
+  startY?: number;
+  endX?: number;
+  endY?: number;
+  arrowHeadSize?: number;
+  // ... copy all other properties from backend
 }
 
-export interface Shape {
+export interface VisualizationObject {
   id: string;
-  type: 'circle' | 'rectangle' | 'text' | 'arrow' | 'line';
-  props: ShapeProps;
-  animations: Animation[];
+  type: VisualizationType;
+  properties: VisualizationProperties;
+}
+
+export interface Frame {
+  timestamp: number;
+  objects: VisualizationObject[];
 }
 
 export interface VisualizationData {
   id: string;
-  type: string;
   title: string;
   description: string;
   duration: number;
-  frames: Array<{
-    timestamp: number;
-    objects: Array<{
-      id: string;
-      type: string;
-      properties: any;
-    }>;
-  }>;
-  metadata?: any;
+  fps: number;  // Added missing field
+  metadata?: Record<string, any>;
+  frames: Frame[];
 }
-// SSE Event Types
+
 export interface SSEEvent {
   type: string;
   data: any;
@@ -94,7 +102,6 @@ export interface AnswerErrorEvent extends SSEEvent {
   data: { questionId: string; error: string };
 }
 
-// Animation Control Types
 export interface AnimationState {
   isPlaying: boolean;
   currentTime: number;

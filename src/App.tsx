@@ -8,70 +8,6 @@ import { apiService } from './services/apiService';
 import { sseService } from './services/sseService';
 import type { AnimationState, Message, VisualizationData } from './types';
 
-// Helper function to transform database visualization to frontend format
-function transformVisualizationData(dbVisualization: any): Partial<VisualizationData> {
-  if (!dbVisualization || !dbVisualization.layers) {
-    return {};
-  }
-
-  // Convert database layers/animations to frontend frames format
-  const frames = [];
-  const duration = dbVisualization.duration || 5000;
-  const frameCount = Math.ceil(duration / 16); // 60fps = 16ms per frame
-
-  for (let i = 0; i < frameCount; i++) {
-    const timestamp = i * 16;
-    const objects = dbVisualization.layers.map((layer: any) => {
-      let properties = { ...layer.props };
-
-      // Apply animations to properties at this timestamp
-      if (layer.animations) {
-        layer.animations.forEach((anim: any) => {
-          if (timestamp >= anim.startTime && timestamp <= anim.endTime) {
-            const progress = (timestamp - anim.startTime) / (anim.endTime - anim.startTime);
-            const easedProgress = applyEasing(progress, anim.easing);
-            
-            // Interpolate between from and to values
-            if (typeof anim.fromValue === 'number' && typeof anim.toValue === 'number') {
-              properties[anim.property] = anim.fromValue + (anim.toValue - anim.fromValue) * easedProgress;
-            }
-          }
-        });
-      }
-
-      return {
-        id: layer.layerId,
-        type: layer.type,
-        properties
-      };
-    });
-
-    frames.push({
-      timestamp,
-      objects
-    });
-  }
-
-  return {
-    frames,
-    metadata: dbVisualization.metadata
-  };
-}
-
-// Simple easing function
-function applyEasing(t: number, easing: string = 'linear'): number {
-  switch (easing) {
-    case 'ease-in':
-      return t * t;
-    case 'ease-out':
-      return 1 - (1 - t) * (1 - t);
-    case 'ease-in-out':
-      return t < 0.5 ? 2 * t * t : 1 - 2 * (1 - t) * (1 - t);
-    default:
-      return t; // linear
-  }
-}
-
 function App() {
   // State management
   const [messages, setMessages] = useState<Message[]>([]);
@@ -152,13 +88,12 @@ function App() {
         console.log('🎨 Setting visualization:', answer.visualization.id);
         const frontendVisualization: VisualizationData = {
           id: answer.visualization.id,
-          type: 'animation',
-          title: 'AI Generated Visualization',
-          description: 'Interactive visualization of the answer',
+          title: answer.visualization.title,
+          description: answer.visualization.description,
           duration: answer.visualization.duration,
-          frames: [], // Will be populated from layers/animations
-          // Convert database structure to frontend format
-          ...transformVisualizationData(answer.visualization)
+          fps: answer.visualization.fps,
+          metadata: answer.visualization.metadata ?? "",
+          frames: answer.visualization.frames || []
         };
         
         setCurrentVisualization(frontendVisualization);
