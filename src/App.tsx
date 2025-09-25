@@ -1,79 +1,154 @@
 // src/App.tsx
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import ChatPanel from './components/ChatPanel';
 import VisualizationCanvas from './components/VisualizationCanvas';
 import { apiService } from './services/apiService';
 import { sseService } from './services/sseService';
 import type { Message } from './types';
 
+// Key for localStorage
+const MESSAGES_STORAGE_KEY = 'chat_messages';
+const SESSION_STORAGE_KEY = 'chat_session';
+
 function App() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  // Load messages from localStorage on startup
+  const loadStoredMessages = (): Message[] => {
+    try {
+      const stored = localStorage.getItem(MESSAGES_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // Convert timestamp strings back to Date objects
+        return parsed.map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        }));
+      }
+    } catch (error) {
+      console.warn('Failed to load stored messages:', error);
+    }
+    return [];
+  };
+
+  const [messages, setMessages] = useState<Message[]>(loadStoredMessages());
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [flowchartDefinition, setFlowChartDefinition] = useState<string>("");
   const [title, setTitle] = useState<string>("");
   const [description, setDescription] = useState<string>("");
   const [theme, setTheme] = useState<'default' | 'dark' | 'forest' | 'neutral'>("default");
   const [isConnected, setIsConnected] = useState<boolean>(false);
+  
+  const pendingUserMessages = useRef<Set<string>>(new Set());
+
+  // Save messages to localStorage whenever messages change
+  useEffect(() => {
+    try {
+      localStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify(messages));
+    } catch (error) {
+      console.warn('Failed to save messages to localStorage:', error);
+    }
+  }, [messages]);
+
+  // Generate or retrieve session ID
+  const getSessionId = (): string => {
+    let sessionId = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (!sessionId) {
+      sessionId = crypto.randomUUID();
+      sessionStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+    }
+    return sessionId;
+  };
+
+  const logMessages = (action: string, newMessages: Message[]) => {
+    console.log(`[Messages ${action}]:`, newMessages.map(m => ({
+      id: m.id,
+      type: m.type,
+      status: m.status,
+      content: m.content.substring(0, 50) + '...'
+    })));
+  };
 
   // Set up SSE listeners on component mount
   useEffect(() => {
-    // Listen for connection changes
     sseService.on('connection_change', (connected: boolean) => {
       setIsConnected(connected);
     });
 
-    // Listen for answer_created events (when backend sends response)
     sseService.on('answer_created', (data: any) => {
       console.log('Received answer_created:', data);
       
-      // Create AI response message from backend data
-      const aiMessage: Message = {
-        id: Date.now().toString(),
-        type: 'answer',
-        content: data.answer.text || "Here is the visualization to explain the related concept",
-        timestamp: new Date(),
-        status: 'completed',
-      };
-      
-      // Add AI message to chat
-      setMessages(prev => [...prev, aiMessage]);
-      
-      // Update chart if provided
-      if (data.answer.chart) {
-        setFlowChartDefinition(data.answer.chart.chartDefinition);
-        setTheme(data.answer.chart.theme);
-        setTitle(data.answer.chart.title);
-        setDescription(data.answer.chart.description);
-      }
-      
-      setIsLoading(false);
+      // Check if we should add this answer or if it's already stored
+      setMessages(prev => {
+        // Look for existing answer with similar content
+        const existingAnswer = prev.find(msg => 
+          msg.type === 'answer' && 
+          msg.content === (data.answer.text || "Here is the visualization to explain the related concept")
+        );
+        
+        if (existingAnswer) {
+          console.log('Answer already exists in localStorage, skipping duplicate from SSE');
+          
+          // Still update visualization if provided, but don't add message
+          if (data.answer.chart) {
+            setFlowChartDefinition(data.answer.chart.chartDefinition);
+            setTheme(data.answer.chart.theme);
+            setTitle(data.answer.chart.title);
+            setDescription(data.answer.chart.description);
+          }
+          
+          setIsLoading(false);
+          return prev; // Don't add duplicate message
+        }
+        
+        // Only add if this is a genuinely new answer
+        const aiMessage: Message = {
+          id: crypto.randomUUID(),
+          type: 'answer',
+          content: data.answer.text || "Here is the visualization to explain the related concept",
+          timestamp: new Date(),
+          status: 'completed',
+        };
+        
+        const newMessages = [...prev, aiMessage];
+        logMessages('after adding new AI response', newMessages);
+        
+        // Update visualization
+        if (data.answer.chart) {
+          setFlowChartDefinition(data.answer.chart.chartDefinition);
+          setTheme(data.answer.chart.theme);
+          setTitle(data.answer.chart.title);
+          setDescription(data.answer.chart.description);
+        }
+        
+        setIsLoading(false);
+        return newMessages;
+      });
     });
 
-    // Listen for question_created events (confirmation from backend)
     sseService.on('question_created', (data: any) => {
-      console.log('Question created:', data);
+      console.log('Question created confirmation:', data);
     });
 
-    // Listen for answer_error events
     sseService.on('answer_error', (data: any) => {
       console.log('Answer error:', data);
       
       const errorMessage: Message = {
-        id: Date.now().toString(),
+        id: crypto.randomUUID(),
         type: 'answer',
         content: 'Sorry, I encountered an error processing your question. Please try again.',
         timestamp: new Date(),
         status: 'error',
       };
       
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages(prev => {
+        const newMessages = [...prev, errorMessage];
+        logMessages('after adding error message', newMessages);
+        return newMessages;
+      });
       setIsLoading(false);
     });
 
-    // Connect to SSE
     sseService.connect();
 
-    // Cleanup on unmount
     return () => {
       sseService.disconnect(true);
     };
@@ -84,55 +159,75 @@ function App() {
     
     setIsLoading(true);
     
-    // 1. Add user message to UI immediately
+    const userMessageId = crypto.randomUUID();
+    pendingUserMessages.current.add(userMessageId);
+    
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: userMessageId,
       type: 'question',
       content,
       timestamp: new Date(),
       status: 'pending',
     };
     
-    setMessages(prev => [...prev, userMessage]);
+    setMessages(prev => {
+      const newMessages = [...prev, userMessage];
+      logMessages('after adding user question', newMessages);
+      return newMessages;
+    });
 
     try {
-      // 2. Submit question to backend via API
-      const questionResponse = await apiService.submitQuestion('user123', content);
-      console.log('Question submitted:', questionResponse);
+      const sessionId = getSessionId();
+      const questionResponse = await apiService.submitQuestion(sessionId, content);
+      console.log('Question submitted successfully:', questionResponse);
       
-      // 3. Update user message status to completed
-      setMessages(prev => 
-        prev.map(msg => 
-          msg.id === userMessage.id 
-            ? { ...msg, status: 'completed' as const }
-            : msg
-        )
-      );
+      setMessages(prev => {
+        const updatedMessages = prev.map(msg => {
+          if (msg.id === userMessageId && msg.status === 'pending') {
+            return { ...msg, status: 'completed' as const };
+          }
+          return msg;
+        });
+        
+        logMessages('after updating user question to completed', updatedMessages);
+        return updatedMessages;
+      });
+      
+      pendingUserMessages.current.delete(userMessageId);
       
     } catch (error) {
       console.error('Failed to submit question:', error);
       
-      // Update user message to show error
-      setMessages(prev => 
-        prev.map(msg => 
-          msg.id === userMessage.id 
-            ? { ...msg, status: 'error' as const }
-            : msg
-        )
-      );
+      setMessages(prev => {
+        const updatedMessages = prev.map(msg => {
+          if (msg.id === userMessageId) {
+            return { ...msg, status: 'error' as const };
+          }
+          return msg;
+        });
+        
+        logMessages('after updating user question to error', updatedMessages);
+        return updatedMessages;
+      });
       
+      pendingUserMessages.current.delete(userMessageId);
       setIsLoading(false);
     }
   }, [isLoading]);
 
+  useEffect(() => {
+    console.log(`[Message State Changed] Total messages: ${messages.length}`);
+    messages.forEach((msg, index) => {
+      console.log(`  ${index}: ${msg.type} - ${msg.status} - ID: ${msg.id.substring(0, 8)}... - "${msg.content.substring(0, 30)}..."`);
+    });
+  }, [messages]);
+
   return (
     <div className="relative w-screen h-screen overflow-hidden font-sans">
-      {/* Background gradient */}
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-500 to-purple-600 opacity-10 -z-10"></div>
+
       
-      {/* Main content */}
       <div className="flex w-full h-full gap-6 p-6 box-border flex-col lg:flex-row">
-        {/* Chat Panel */}
         <div className="w-full lg:w-[600px] lg:flex-shrink-0 h-full">
           <div className="h-full bg-white rounded-3xl shadow-2xl overflow-hidden backdrop-blur-sm border border-white/20 flex flex-col transition-all duration-300 hover:shadow-3xl hover:-translate-y-0.5 bg-gradient-to-br from-white to-slate-50">
             <div className="px-6 py-5 border-b border-black/5 bg-gradient-to-r from-white/80 to-slate-50/80 backdrop-blur-sm">
@@ -167,7 +262,6 @@ function App() {
           </div>
         </div>
 
-        {/* Visualization Panel */}
         <div className="flex-1 min-w-0 h-full">
           <div className="h-full bg-white rounded-3xl shadow-2xl overflow-hidden backdrop-blur-sm border border-white/20 flex flex-col transition-all duration-300 hover:shadow-3xl hover:-translate-y-0.5 bg-gradient-to-br from-white to-slate-100">
             <div className="px-6 py-5 border-b border-black/5 bg-gradient-to-r from-white/80 to-slate-100/80 backdrop-blur-sm">
@@ -201,7 +295,6 @@ function App() {
         </div>
       </div>
 
-      {/* Custom animation styles */}
       <style dangerouslySetInnerHTML={{
         __html: `
           @keyframes pulse {
