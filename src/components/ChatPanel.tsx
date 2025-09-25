@@ -60,12 +60,6 @@ const ChatPanel: React.FC<Props> = ({
       <div className="bg-gradient-to-r from-red-500 to-rose-400 text-white p-5">
         <div className="flex justify-between items-center">
           <h2 className="text-xl font-semibold">Chat with AI</h2>
-          <div className="flex items-center gap-2">
-            <div className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'} animate-pulse`} />
-            <span className="text-sm font-medium">
-              {isConnected ? 'Connected' : 'Disconnected'}
-            </span>
-          </div>
         </div>
       </div>
 
