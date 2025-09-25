@@ -23,12 +23,105 @@ const sanitizeChartDefinition = (definition: string): string => {
     console.warn('⚠️ Chart definition appears truncated - mismatched brackets');
   }
   
-  return definition
-    .replace(/;(\s*$)/gm, '$1')
+  let sanitized = definition;
+  
+  // Remove trailing semicolons at end of lines
+  sanitized = sanitized.replace(/;(\s*$)/gm, '$1');
+  
+  // Handle problematic characters that can cause parsing issues
+  // Escape or remove characters that Mermaid doesn't handle well
+  sanitized = sanitized
+    // Remove or escape problematic punctuation in labels
+    .replace(/([A-Za-z0-9_]+)\s*\{\s*([^}]*[<>&"'`]+[^}]*)\s*\}/g, (match, nodeId, label) => {
+      // Clean the label by removing/escaping problematic characters
+      const cleanLabel = label
+        .replace(/["'`]/g, '') // Remove quotes
+        .replace(/[<>&]/g, '') // Remove HTML-like characters
+        .replace(/\s+/g, ' ') // Normalize whitespace
+        .trim();
+      return `${nodeId}{${cleanLabel}}`;
+    })
+    
+    // Handle square bracket labels with problematic characters
+    .replace(/\[([^[\]]*[<>&"'`]+[^[\]]*)\]/g, (match, label) => {
+      const cleanLabel = label
+        .replace(/["'`]/g, '') // Remove quotes
+        .replace(/[<>&]/g, '') // Remove HTML-like characters
+        .replace(/\s+/g, ' ') // Normalize whitespace
+        .trim();
+      return `["${cleanLabel}"]`;
+    })
+    
+    // Handle parentheses in labels that aren't properly quoted
     .replace(/\[([^[\]]*)\(([^)]*)\)([^[\]]*)\]/g, '["$1$2$3"]')
-    .replace(/\[([^[\]"]*[,&<>'"()][^[\]"]*)\]/g, '["$1"]')
+    
+    // Quote labels with special characters (commas, ampersands, etc.)
+    .replace(/\[([^[\]"]*[,&<>'"()]+[^[\]"]*)\]/g, '["$1"]')
+    
+    // Fix double-quoted labels
     .replace(/\[""([^"]*)""]/g, '["$1"]')
+    
+    // Handle curly brace labels with special characters
+    .replace(/\{([^{}]*[,&<>'"()]+[^{}]*)\}/g, '{"$1"}')
+    
+    // Remove any stray control characters or non-printable characters
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    
+    // Fix common arrow syntax issues
+    .replace(/--+>/g, '-->')
+    .replace(/-+>/g, '-->')
+    .replace(/=+>/g, '==>')
+    
+    // Ensure proper spacing around arrows
+    .replace(/(\w)\s*-->\s*(\w)/g, '$1 --> $2')
+    .replace(/(\w)\s*==>\s*(\w)/g, '$1 ==> $2')
+    
+    // Handle node definitions that might have syntax issues
+    // Fix cases where there might be extra characters after node definitions
+    .replace(/([A-Za-z0-9_]+)(\{[^}]*\}|\[[^\]]*\]|\([^)]*\))\s*([^-=\s][^-=\n\r]*?)(\s*(?:-->|==>|\n|\r|$))/g, 
+      (match, nodeId, shape, extra, ending) => {
+        // If there's extra content that's not a proper connection, remove it
+        if (extra.trim() && !extra.match(/^(-->|==>)/)) {
+          console.warn(`⚠️ Removing extra content after node ${nodeId}: "${extra.trim()}"`);
+          return `${nodeId}${shape}${ending}`;
+        }
+        return match;
+      })
+    
+    // Normalize line endings
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    
+    // Remove empty lines and trim
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .join('\n')
     .trim();
+  
+  // Additional validation
+  const lines = sanitized.split('\n');
+  const problematicLines: string[] = [];
+  
+  lines.forEach((line, index) => {
+    // Check for common syntax issues
+    if (line.includes('(') && !line.includes(')')) {
+      problematicLines.push(`Line ${index + 1}: Unmatched parentheses`);
+    }
+    if (line.includes('[') && line.match(/\[/g)?.length !== line.match(/\]/g)?.length) {
+      problematicLines.push(`Line ${index + 1}: Unmatched brackets`);
+    }
+    if (line.includes('{') && line.match(/\{/g)?.length !== line.match(/\}/g)?.length) {
+      problematicLines.push(`Line ${index + 1}: Unmatched braces`);
+    }
+  });
+  
+  if (problematicLines.length > 0) {
+    console.warn('⚠️ Potential syntax issues found:', problematicLines);
+  }
+  
+  console.log('✅ Sanitized definition:', JSON.stringify(sanitized));
+  return sanitized;
 };
 
 const VisualizationCanvas: React.FC<Props> = ({ 
