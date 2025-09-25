@@ -197,7 +197,9 @@ const VisualizationCanvas: React.FC<Props> = ({
           borderRadius: '8px', 
           padding: '20px',
           backgroundColor: 'white',
-          overflow: 'auto'
+          overflow: 'auto',
+          display: 'flex',
+          justifyContent: 'center',
         }}
       >
         {!sanitizedDefinition ? 'Waiting for chart...' : 'Loading chart...'}
