@@ -32,7 +32,7 @@ const sanitizeChartDefinition = (definition: string): string => {
   // Escape or remove characters that Mermaid doesn't handle well
   sanitized = sanitized
     // Remove or escape problematic punctuation in labels
-    .replace(/([A-Za-z0-9_]+)\s*\{\s*([^}]*[<>&"'`]+[^}]*)\s*\}/g, (match, nodeId, label) => {
+    .replace(/([A-Za-z0-9_]+)\s*\{\s*([^}]*[<>&"'`]+[^}]*)\s*\}/g, (nodeId, label) => {
       // Clean the label by removing/escaping problematic characters
       const cleanLabel = label
         .replace(/["'`]/g, '') // Remove quotes
@@ -43,7 +43,7 @@ const sanitizeChartDefinition = (definition: string): string => {
     })
     
     // Handle square bracket labels with problematic characters
-    .replace(/\[([^[\]]*[<>&"'`]+[^[\]]*)\]/g, (match, label) => {
+    .replace(/\[([^[\]]*[<>&"'`]+[^[\]]*)\]/g, (label) => {
       const cleanLabel = label
         .replace(/["'`]/g, '') // Remove quotes
         .replace(/[<>&]/g, '') // Remove HTML-like characters
